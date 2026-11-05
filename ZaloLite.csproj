@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,10 +6,21 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ZLByLHL</AssemblyName>
+    <RootNamespace>ZLByLHL</RootNamespace>
+    <Product>ZLByLHL</Product>
+    <Title>ZLByLHL - Commercial Edition</Title>
+    <Description>ZLByLHL - Siêu Nhẹ, Đa Tài Khoản, AI CSKH &amp; Trợ Lý Chốt Đơn</Description>
+    <Version>2.0.0</Version>
+    <Authors>Locdark (Hoài Lộc)</Authors>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <Content Include="app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

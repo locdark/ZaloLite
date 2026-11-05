@@ -1,4 +1,4 @@
-﻿namespace ZaloLite;
+namespace ZLByLHL;
 
 partial class Form1
 {
