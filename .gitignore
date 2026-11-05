@@ -1,0 +1,12 @@
+# Build and Output
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# WebView2 Runtime Cache (nếu có lọt vào)
+EBWebView/
+ZaloProData/
