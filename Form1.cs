@@ -17,7 +17,7 @@ namespace ZLByLHL
 {
     public partial class Form1 : Form
     {
-        public const string CURRENT_VERSION = "2.0.0";
+        public const string CURRENT_VERSION = "2.0.1";
         private const string APP_DATA_FOLDER_NAME = "ZLByLHLData";
         private const string REG_RUN_PATH = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string APP_REG_NAME = "ZLByLHL";
@@ -36,21 +36,13 @@ namespace ZLByLHL
         private FlowLayoutPanel accountsListPanel = null!;
         private Panel mainContainer = null!;
         private Panel rightSidebar = null!;
+        private Splitter sideSplitter = null!;
 
-        // Panel AI & Panel Tools
-        private Panel aiPanel = null!;
+        // Panel Tools Bot (VPS 153)
         private Panel toolsPanel = null!;
         private WebView2? toolsWebView;
         private Button btnPopOutTools = null!;
         private Form? botMiniForm = null;
-
-        // AI Controls
-        private ComboBox cboAiPreset = null!;
-        private TextBox txtCustomerMsg = null!;
-        private TextBox txtAiInstruction = null!;
-        private TextBox txtAiOutput = null!;
-        private Button btnAiGenerate = null!;
-        private Label lblAiStatus = null!;
 
         // License & Trạng thái VIP
         private Button btnVipStatus = null!;
@@ -69,9 +61,6 @@ namespace ZLByLHL
         // Endpoints Backend
         private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
         private const string VPS_153_BASE = "http://160.191.244.153";
-        private const string AI_GATEWAY_URL = "http://180.93.114.120:3000/v1/chat/completions";
-        private const string AI_MASTER_KEY = "sk-I8LFCh2Yenz1IAkbacmKfwKsVYEiwuB60GMCLOY3sYDNuuQ5";
-        private const string AI_MODEL = "gemini-3.5-flash";
 
         public Form1(bool startMinimized = false)
         {
@@ -88,7 +77,6 @@ namespace ZLByLHL
             this.MinimumSize = new Size(950, 650);
             this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
 
-            // Tải icon cho Form
             string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
             if (File.Exists(icoPath))
             {
@@ -253,7 +241,7 @@ namespace ZLByLHL
             {
                 Text = isVipActivated
                     ? $"Trạng thái: ĐÃ KÍCH HOẠT ({activePlan.ToUpper()}) | HSD: {licenseExpiry:dd/MM/yyyy}\nMã / Tài khoản: {licenseKey}"
-                    : "Mở khóa 8 Tài khoản Zalo song song, Trợ lý AI Cụm Gemini và Quản lý Bot:",
+                    : "Mở khóa 8 Tài khoản Zalo song song và Bảng điều khiển Bot ZaloTools:",
                 Location = new Point(22, 45),
                 Size = new Size(480, 35),
                 ForeColor = isVipActivated ? Color.FromArgb(46, 204, 113) : Color.FromArgb(80, 80, 80)
@@ -268,7 +256,7 @@ namespace ZLByLHL
             };
             dlg.Controls.Add(tabControl);
 
-            // ─── TAB 1: TÀI KHOẢN WEB (Dành cho khách tự mua gói) ───
+            // TAB 1: Tài khoản Web (Dành cho khách mua gói)
             var tabWeb = new TabPage("👤 Tài Khoản Web (Đã mua gói)");
             tabWeb.BackColor = Color.White;
             tabWeb.Padding = new Padding(12);
@@ -297,7 +285,7 @@ namespace ZLByLHL
             tabWeb.Controls.Add(btnLoginWeb);
             tabControl.TabPages.Add(tabWeb);
 
-            // ─── TAB 2: MÃ KEY BẢN QUYỀN ───
+            // TAB 2: Mã Key bản quyền
             var tabKey = new TabPage("🔑 Nhập Mã Key (Đại lý cấp)");
             tabKey.BackColor = Color.White;
             tabKey.Padding = new Padding(12);
@@ -355,7 +343,6 @@ namespace ZLByLHL
             };
             dlg.Controls.Add(btnWeb);
 
-            // Xử lý đăng nhập tài khoản Web
             btnLoginWeb.Click += async (s, e) => {
                 string u = txtUsername.Text.Trim();
                 string p = txtPassword.Text.Trim();
@@ -408,7 +395,6 @@ namespace ZLByLHL
                 }
             };
 
-            // Xử lý kích hoạt mã key
             btnSubmitKey.Click += async (s, e) => {
                 string inputKey = txtKeyInput.Text.Trim();
                 if (string.IsNullOrEmpty(inputKey))
@@ -571,7 +557,7 @@ del ""%~f0""
             accountsListPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 410,
+                Height = 440,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
                 AutoScroll = true,
@@ -604,7 +590,7 @@ del ""%~f0""
             Panel bottomToolsPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 310,
+                Height = 255,
                 BackColor = Color.Transparent
             };
             sidebarPanel.Controls.Add(bottomToolsPanel);
@@ -613,46 +599,51 @@ del ""%~f0""
             btnVipStatus.Location = new Point(10, 8);
             btnVipStatus.Click += (s, e) => ShowLicenseDialog();
 
-            Button btnAiToggle = CreateSidebarIconButton("🤖", "Trợ lý AI CSKH (VPS 120 Gemini Cluster)", Color.FromArgb(0, 132, 255), Color.White);
-            btnAiToggle.Location = new Point(10, 68);
-            btnAiToggle.Click += (s, e) => ToggleRightPanel("AI");
-
             Button btnToolsToggle = CreateSidebarIconButton("🛠️", "ZaloTools Bot Suite (VPS 153)", Color.FromArgb(230, 126, 34), Color.White);
-            btnToolsToggle.Location = new Point(10, 128);
+            btnToolsToggle.Location = new Point(10, 68);
             btnToolsToggle.Click += async (s, e) => {
-                ToggleRightPanel("TOOLS");
+                ToggleRightPanel();
                 await InitToolsWebViewAsync();
             };
 
             Button btnStartupToggle = CreateSidebarIconButton("🚀", "Cài đặt: Tự bật khi khởi động máy", IsAutoStartEnabled() ? Color.FromArgb(46, 204, 113) : Color.FromArgb(54, 57, 63), Color.White);
-            btnStartupToggle.Location = new Point(10, 188);
+            btnStartupToggle.Location = new Point(10, 128);
             btnStartupToggle.Click += (s, e) => {
                 ToggleAutoStart();
                 btnStartupToggle.BackColor = IsAutoStartEnabled() ? Color.FromArgb(46, 204, 113) : Color.FromArgb(54, 57, 63);
             };
 
             Button btnDarkToggle = CreateSidebarIconButton("🌙", "Bật/Tắt Giao diện tối", Color.FromArgb(54, 57, 63), Color.White);
-            btnDarkToggle.Location = new Point(10, 248);
+            btnDarkToggle.Location = new Point(10, 188);
             btnDarkToggle.Click += async (s, e) => await ToggleDarkMode();
 
             bottomToolsPanel.Controls.Add(btnVipStatus);
-            bottomToolsPanel.Controls.Add(btnAiToggle);
             bottomToolsPanel.Controls.Add(btnToolsToggle);
             bottomToolsPanel.Controls.Add(btnStartupToggle);
             bottomToolsPanel.Controls.Add(btnDarkToggle);
 
             AddAccountButton(1);
 
+            // Bảng điều khiển Bot (Có Splitter kéo thu phóng tùy ý)
             rightSidebar = new Panel
             {
                 Dock = DockStyle.Right,
-                Width = 360,
+                Width = 500,
                 BackColor = Color.FromArgb(248, 249, 250),
                 Visible = false
             };
             this.Controls.Add(rightSidebar);
 
-            BuildAiPanel();
+            sideSplitter = new Splitter
+            {
+                Dock = DockStyle.Right,
+                Width = 6,
+                BackColor = Color.FromArgb(210, 215, 222),
+                Cursor = Cursors.VSplit,
+                Visible = false
+            };
+            this.Controls.Add(sideSplitter);
+
             BuildToolsPanel();
 
             mainContainer = new Panel
@@ -838,337 +829,13 @@ del ""%~f0""
         }
         #endregion
 
-        #region Panel AI Co-Pilot (VPS 120 AI Gateway)
-        private void BuildAiPanel()
-        {
-            aiPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(245, 247, 250),
-                Padding = new Padding(12),
-                AutoScroll = true
-            };
-            rightSidebar.Controls.Add(aiPanel);
-
-            // Container chứa các control theo thứ tự tuần tự
-            var contentLayout = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.TopDown,
-                WrapContents = false,
-                AutoScroll = true,
-                BackColor = Color.Transparent,
-                Padding = new Padding(0)
-            };
-            aiPanel.Controls.Add(contentLayout);
-
-            var lblTitle = new Label
-            {
-                Text = "🤖 AI CSKH & CHỐT ĐƠN (ZLByLHL)",
-                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 102, 204),
-                Width = 330,
-                Height = 28
-            };
-            contentLayout.Controls.Add(lblTitle);
-
-            var lblPreset = new Label { Text = "Kịch bản bán hàng:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
-            contentLayout.Controls.Add(lblPreset);
-
-            cboAiPreset = new ComboBox
-            {
-                Width = 330,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Height = 28
-            };
-            cboAiPreset.Items.AddRange(new object[] {
-                "1. Tư vấn báo giá & chốt đơn khéo léo",
-                "2. Xử lý khiếu nại khách hàng lịch sự",
-                "3. Xin lỗi chậm trễ & tặng voucher",
-                "4. Giới thiệu chương trình khuyến mãi hôm nay",
-                "5. Dịch tin nhắn sang tiếng Anh chuyên nghiệp"
-            });
-            cboAiPreset.SelectedIndex = 0;
-            contentLayout.Controls.Add(cboAiPreset);
-
-            var btnFetchMsg = new Button
-            {
-                Text = "📥 Lấy tin nhắn khách đang chat",
-                Width = 330,
-                Height = 36,
-                BackColor = Color.FromArgb(235, 240, 250),
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 8, 0, 8)
-            };
-            btnFetchMsg.Click += async (s, e) => await ExtractLastCustomerMessageAsync();
-            contentLayout.Controls.Add(btnFetchMsg);
-
-            var lblCust = new Label { Text = "Tin nhắn của khách:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
-            contentLayout.Controls.Add(lblCust);
-
-            txtCustomerMsg = new TextBox
-            {
-                Width = 330,
-                Multiline = true,
-                Height = 65,
-                ScrollBars = ScrollBars.Vertical
-            };
-            contentLayout.Controls.Add(txtCustomerMsg);
-
-            var lblInst = new Label { Text = "Ghi chú thêm (Giá, hàng, yêu cầu):", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
-            contentLayout.Controls.Add(lblInst);
-
-            txtAiInstruction = new TextBox
-            {
-                Width = 330,
-                Height = 26,
-                PlaceholderText = "VD: Đang giảm 20%, freeship đơn từ 500k..."
-            };
-            contentLayout.Controls.Add(txtAiInstruction);
-
-            btnAiGenerate = new Button
-            {
-                Text = "✨ AI SOẠN CÂU TRẢ LỜI",
-                Width = 330,
-                Height = 38,
-                BackColor = Color.FromArgb(0, 132, 255),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 8, 0, 4)
-            };
-            btnAiGenerate.Click += async (s, e) => await CallAiGatewayGenerateReplyAsync();
-            contentLayout.Controls.Add(btnAiGenerate);
-
-            lblAiStatus = new Label
-            {
-                Text = "Sẵn sàng kết nối VPS 120 (4x Gemini Load-Balanced)",
-                Width = 330,
-                Height = 22,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8f)
-            };
-            contentLayout.Controls.Add(lblAiStatus);
-
-            var lblOut = new Label { Text = "Câu trả lời gợi ý của AI:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
-            contentLayout.Controls.Add(lblOut);
-
-            txtAiOutput = new TextBox
-            {
-                Width = 330,
-                Multiline = true,
-                Height = 110,
-                ScrollBars = ScrollBars.Vertical,
-                BackColor = Color.White
-            };
-            contentLayout.Controls.Add(txtAiOutput);
-
-            var btnInsertToZalo = new Button
-            {
-                Text = "🚀 CHÈN VÀO KHUNG CHAT ZALO",
-                Width = 330,
-                Height = 42,
-                BackColor = Color.FromArgb(46, 204, 113),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 8, 0, 15)
-            };
-            btnInsertToZalo.Click += async (s, e) => await InsertTextIntoZaloChatAsync(txtAiOutput.Text);
-            contentLayout.Controls.Add(btnInsertToZalo);
-        }
-
-        private async Task ExtractLastCustomerMessageAsync()
-        {
-            if (!accountWebViews.TryGetValue(currentAccountId, out var web) || web?.CoreWebView2 == null) return;
-
-            string js = @"
-                (function() {
-                    // 1. Text đang bôi đen
-                    const sel = window.getSelection().toString().trim();
-                    if (sel && sel.length > 0) return sel;
-
-                    // 2. Tìm trong khu vực tin nhắn
-                    const chatRoot = document.querySelector('#chatViewContainer, #messageViewContainer, .chat-view, [class*=""chat-thread""]') || document.body;
-
-                    // Các selector tin nhắn của Zalo Web
-                    const selectors = [
-                        '.chat-message-text',
-                        '.card--text .text',
-                        '.card--text',
-                        '[class*=""content-text""]',
-                        '.msg-text',
-                        '.bubble-wrapper .text',
-                        '[id^=""msg-""] [class*=""text""]',
-                        '.chat-item [class*=""text""]'
-                    ];
-
-                    const bubbles = Array.from(chatRoot.querySelectorAll(selectors.join(', ')));
-
-                    for (let i = bubbles.length - 1; i >= 0; i--) {
-                        const el = bubbles[i];
-                        // Loại trừ tin do chính mình gửi (bên phải / có class me)
-                        const isMe = el.closest('.me, .chat-item--me, [class*=""bubble-right""], [class*=""--me""], [class*=""right""]');
-                        if (isMe) continue;
-
-                        let txt = (el.innerText || el.textContent || '').trim();
-                        if (txt && txt.length > 0 && !txt.match(/^\d{1,2}:\d{2}$/) && !txt.includes('Gửi yêu cầu kết bạn')) {
-                            txt = txt.replace(/\n?\d{1,2}:\d{2}$/, '').trim();
-                            if (txt.length > 0) return txt;
-                        }
-                    }
-
-                    // 3. Quét hình học các phần tử bên trái
-                    const paragraphs = Array.from(chatRoot.querySelectorAll('p, span, div'));
-                    const rectRoot = chatRoot.getBoundingClientRect();
-                    const midX = rectRoot.left + (rectRoot.width / 2);
-
-                    for (let j = paragraphs.length - 1; j >= 0; j--) {
-                        const p = paragraphs[j];
-                        if (p.children.length > 0) continue;
-                        const txt = (p.innerText || '').trim();
-                        if (!txt || txt.length < 2 || txt.match(/^\d{1,2}:\d{2}$/)) continue;
-
-                        const rect = p.getBoundingClientRect();
-                        if (rect.top > rectRoot.top && rect.bottom < rectRoot.bottom && rect.right < (midX + 40) && rect.left > rectRoot.left + 40) {
-                            if (!txt.includes('Tải ngay') && !txt.includes('Tìm kiếm') && !txt.includes('Gửi yêu cầu')) {
-                                return txt;
-                            }
-                        }
-                    }
-
-                    return '';
-                })();
-            ";
-
-            string resultJson = await web.ExecuteScriptAsync(js);
-            string rawText = JsonSerializer.Deserialize<string>(resultJson) ?? "";
-            if (!string.IsNullOrEmpty(rawText))
-            {
-                txtCustomerMsg.Text = rawText;
-                lblAiStatus.Text = "✅ Đã trích xuất tin nhắn khách gần nhất!";
-            }
-            else
-            {
-                lblAiStatus.Text = "⚠️ Chưa tìm thấy tin nhắn, bạn có thể bôi đen văn bản.";
-            }
-        }
-
-        private async Task CallAiGatewayGenerateReplyAsync()
-        {
-            string custText = txtCustomerMsg.Text.Trim();
-            if (string.IsNullOrEmpty(custText))
-            {
-                MessageBox.Show("Vui lòng nhập tin nhắn của khách hàng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            btnAiGenerate.Enabled = false;
-            lblAiStatus.Text = "⏳ Đang gọi Cụm 4 Key Gemini (VPS 120)...";
-
-            string promptType = cboAiPreset.SelectedItem?.ToString() ?? "Tư vấn báo giá";
-            string extraNote = txtAiInstruction.Text.Trim();
-
-            string systemPrompt = $@"Bạn là trợ lý bán hàng và CSKH chuyên nghiệp trên Zalo.
-Nhiệm vụ: Soạn câu trả lời bằng tiếng Việt cực kỳ thân thiện, lễ phép, khéo léo và tự nhiên.
-Kịch bản: {promptType}.
-Ghi chú thêm của shop: {extraNote}.
-Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, không kèm lời giải thích rườm rà.";
-
-            try
-            {
-                var requestBody = new
-                {
-                    model = AI_MODEL,
-                    messages = new[]
-                    {
-                        new { role = "system", content = systemPrompt },
-                        new { role = "user", content = $"Khách hàng nhắn: \"{custText}\"" }
-                    },
-                    temperature = 0.7
-                };
-
-                string jsonPayload = JsonSerializer.Serialize(requestBody);
-                using var request = new HttpRequestMessage(HttpMethod.Post, AI_GATEWAY_URL);
-                request.Headers.Add("Authorization", $"Bearer {AI_MASTER_KEY}");
-                request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-                var resp = await httpClient.SendAsync(request);
-                string respJson = await resp.Content.ReadAsStringAsync();
-
-                if (resp.IsSuccessStatusCode)
-                {
-                    using var doc = JsonDocument.Parse(respJson);
-                    string aiReply = doc.RootElement
-                        .GetProperty("choices")[0]
-                        .GetProperty("message")
-                        .GetProperty("content")
-                        .GetString() ?? "";
-
-                    txtAiOutput.Text = aiReply.Trim();
-                    lblAiStatus.Text = "⚡ Hoàn tất! Bấm 'Chèn vào khung chat Zalo' để gửi.";
-                }
-                else
-                {
-                    lblAiStatus.Text = $"❌ Lỗi Gateway: {resp.StatusCode}";
-                    txtAiOutput.Text = respJson;
-                }
-            }
-            catch (Exception ex)
-            {
-                lblAiStatus.Text = "❌ Lỗi kết nối AI Gateway!";
-                txtAiOutput.Text = $"Lỗi: {ex.Message}";
-            }
-            finally
-            {
-                btnAiGenerate.Enabled = true;
-            }
-        }
-
-        private async Task InsertTextIntoZaloChatAsync(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return;
-            if (!accountWebViews.TryGetValue(currentAccountId, out var web) || web?.CoreWebView2 == null) return;
-
-            string escapedText = JsonSerializer.Serialize(text);
-            string js = $@"
-                (function() {{
-                    const input = document.querySelector('div[contenteditable=""true""]') || 
-                                  document.getElementById('input_rich_text') || 
-                                  document.querySelector('[class*=""chat-input""]') ||
-                                  document.querySelector('.rich-input');
-                    if (input) {{
-                        input.focus();
-                        try {{
-                            document.execCommand('selectAll', false, null);
-                            document.execCommand('insertText', false, {escapedText});
-                        }} catch(e) {{
-                            input.innerText = {escapedText};
-                        }}
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        return true;
-                    }}
-                    return false;
-                }})();
-            ";
-
-            await web.ExecuteScriptAsync(js);
-            lblAiStatus.Text = "🚀 Đã chèn thành công vào ô chat Zalo!";
-        }
-        #endregion
-
         #region Panel ZaloTools Suite (VPS 153)
         private void BuildToolsPanel()
         {
             toolsPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.White,
-                Visible = false
+                BackColor = Color.White
             };
             rightSidebar.Controls.Add(toolsPanel);
 
@@ -1218,7 +885,6 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
         {
             if (botMiniForm != null && !botMiniForm.IsDisposed)
             {
-                // Gắn lại vào sidebar
                 botMiniForm.Controls.Clear();
                 botMiniForm.Close();
                 botMiniForm = null;
@@ -1233,13 +899,13 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
                 return;
             }
 
-            // Tách ra cửa sổ Mini độc lập có thể kéo thả tự do
+            // Tách ra cửa sổ Mini độc lập có thể thu nhỏ và kéo thả tự do
             botMiniForm = new Form
             {
                 Text = "ZLByLHL - ZaloTools Mini Bot Suite (Cửa Sổ Theo Dõi Tự Động Clone)",
                 Size = new Size(1150, 780),
                 StartPosition = FormStartPosition.CenterScreen,
-                MinimumSize = new Size(800, 520)
+                MinimumSize = new Size(450, 380)
             };
 
             string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
@@ -1251,11 +917,11 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
             var topBar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(230, 126, 34) };
             var lblInfo = new Label
             {
-                Text = "🛠️ ZALOTOOLS SUITE - CỬA SỔ MINI ĐỘC LẬP (KÉO THẢ TỰ DO)",
+                Text = "🛠️ ZALOTOOLS - CỬA SỔ MINI (KÉO THU PHÓNG TỰ DO)",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 Dock = DockStyle.Left,
-                Width = 460,
+                Width = 420,
                 Padding = new Padding(12, 9, 0, 0)
             };
 
@@ -1273,9 +939,9 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
 
             var btnReDock = new Button
             {
-                Text = "🗕 Gắn lại vào App",
+                Text = "🗕 Gắn lại App",
                 Dock = DockStyle.Right,
-                Width = 140,
+                Width = 130,
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(211, 84, 0),
@@ -1311,6 +977,7 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
             };
 
             rightSidebar.Visible = false;
+            sideSplitter.Visible = false;
             botMiniForm.Show();
         }
 
@@ -1344,45 +1011,19 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
         }
         #endregion
 
-        private void ToggleRightPanel(string panelName)
+        private void ToggleRightPanel()
         {
-            if (panelName == "AI")
+            if (botMiniForm != null && !botMiniForm.IsDisposed)
             {
-                if (rightSidebar.Visible && aiPanel.Visible)
-                {
-                    rightSidebar.Visible = false;
-                }
-                else
-                {
-                    aiPanel.Visible = true;
-                    toolsPanel.Visible = false;
-                    rightSidebar.Width = 360;
-                    rightSidebar.Visible = true;
-                }
+                botMiniForm.WindowState = FormWindowState.Normal;
+                botMiniForm.BringToFront();
+                botMiniForm.Activate();
+                return;
             }
-            else if (panelName == "TOOLS")
-            {
-                // Nếu đang mở cửa sổ Mini độc lập, kích hoạt cửa sổ đó
-                if (botMiniForm != null && !botMiniForm.IsDisposed)
-                {
-                    botMiniForm.WindowState = FormWindowState.Normal;
-                    botMiniForm.BringToFront();
-                    botMiniForm.Activate();
-                    return;
-                }
 
-                if (rightSidebar.Visible && toolsPanel.Visible)
-                {
-                    rightSidebar.Visible = false;
-                }
-                else
-                {
-                    toolsPanel.Visible = true;
-                    aiPanel.Visible = false;
-                    rightSidebar.Width = 460;
-                    rightSidebar.Visible = true;
-                }
-            }
+            bool isCurrentlyVisible = rightSidebar.Visible;
+            rightSidebar.Visible = !isCurrentlyVisible;
+            sideSplitter.Visible = !isCurrentlyVisible;
         }
 
         private async Task ToggleDarkMode()
@@ -1482,11 +1123,6 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == (Keys.Control | Keys.Space))
-            {
-                ToggleRightPanel("AI");
-                return true;
-            }
             if (keyData == (Keys.Control | Keys.Shift | Keys.D))
             {
                 _ = ToggleDarkMode();

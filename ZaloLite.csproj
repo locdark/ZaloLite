@@ -10,8 +10,8 @@
     <RootNamespace>ZLByLHL</RootNamespace>
     <Product>ZLByLHL</Product>
     <Title>ZLByLHL - Commercial Edition</Title>
-    <Description>ZLByLHL - Siêu Nhẹ, Đa Tài Khoản, AI CSKH &amp; Trợ Lý Chốt Đơn</Description>
-    <Version>2.0.0</Version>
+    <Description>ZLByLHL - Siêu Nhẹ, Đa Tài Khoản &amp; ZaloBot Pro</Description>
+    <Version>2.0.1</Version>
     <Authors>Locdark (Hoài Lộc)</Authors>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>

@@ -1,0 +1,8 @@
+{
+  "latestVersion": "2.0.1",
+  "minVersion": "1.0.0",
+  "releaseDate": "2026-11-06",
+  "downloadUrl": "http://160.191.244.153/downloads/ZLByLHL.exe",
+  "changelog": "• Đã loại bỏ AI Chatbot để tối ưu giao diện gọn gàng, siêu nhẹ\n• Bổ sung thanh trượt kéo thu phóng kích thước tab Bot (Splitter)\n• Bổ sung Cửa sổ Mini độc lập (Pop-out Window, Always-on-top) cho Bot\n• Bổ sung nút [+] tạo thêm tab đăng nhập Zalo thứ 2, 3... (tối đa 8 nick)\n• Tự khởi động cùng Windows (Auto-start) chạy ngầm khay hệ thống",
+  "forceUpdate": false
+}
