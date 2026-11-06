@@ -41,6 +41,8 @@ namespace ZLByLHL
         private Panel aiPanel = null!;
         private Panel toolsPanel = null!;
         private WebView2? toolsWebView;
+        private Button btnPopOutTools = null!;
+        private Form? botMiniForm = null;
 
         // AI Controls
         private ComboBox cboAiPreset = null!;
@@ -229,7 +231,7 @@ namespace ZLByLHL
             using var dlg = new Form
             {
                 Text = "Kích hoạt Bản Quyền VIP - ZLByLHL",
-                Size = new Size(520, 310),
+                Size = new Size(540, 390),
                 StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 MaximizeBox = false,
@@ -242,7 +244,7 @@ namespace ZLByLHL
                 Text = "💎 KÍCH HOẠT BẢN QUYỀN ZLByLHL PRO",
                 Font = new Font("Segoe UI", 12f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 102, 204),
-                Location = new Point(20, 20),
+                Location = new Point(20, 15),
                 AutoSize = true
             };
             dlg.Controls.Add(lblTitle);
@@ -250,45 +252,164 @@ namespace ZLByLHL
             var lblDesc = new Label
             {
                 Text = isVipActivated
-                    ? $"Trạng thái: ĐÃ KÍCH HOẠT ({activePlan.ToUpper()})\nHạn dùng: {licenseExpiry:dd/MM/yyyy HH:mm}\nMã: {licenseKey}"
-                    : "Nhập mã License Key để mở khóa 8 Nick Zalo, Trợ lý AI CSKH và Bot ZaloTools:",
-                Location = new Point(22, 55),
-                Size = new Size(460, 45),
+                    ? $"Trạng thái: ĐÃ KÍCH HOẠT ({activePlan.ToUpper()}) | HSD: {licenseExpiry:dd/MM/yyyy}\nMã / Tài khoản: {licenseKey}"
+                    : "Mở khóa 8 Tài khoản Zalo song song, Trợ lý AI Cụm Gemini và Quản lý Bot:",
+                Location = new Point(22, 45),
+                Size = new Size(480, 35),
                 ForeColor = isVipActivated ? Color.FromArgb(46, 204, 113) : Color.FromArgb(80, 80, 80)
             };
             dlg.Controls.Add(lblDesc);
 
+            var tabControl = new TabControl
+            {
+                Location = new Point(22, 85),
+                Size = new Size(480, 200),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular)
+            };
+            dlg.Controls.Add(tabControl);
+
+            // ─── TAB 1: TÀI KHOẢN WEB (Dành cho khách tự mua gói) ───
+            var tabWeb = new TabPage("👤 Tài Khoản Web (Đã mua gói)");
+            tabWeb.BackColor = Color.White;
+            tabWeb.Padding = new Padding(12);
+
+            var lblUser = new Label { Text = "Tên đăng nhập (Web SaaS):", Location = new Point(15, 12), AutoSize = true, ForeColor = Color.FromArgb(60, 60, 60) };
+            var txtUsername = new TextBox { Location = new Point(15, 34), Width = 430, Height = 28, PlaceholderText = "VD: khachhang123" };
+            var lblPass = new Label { Text = "Mật khẩu:", Location = new Point(15, 70), AutoSize = true, ForeColor = Color.FromArgb(60, 60, 60) };
+            var txtPassword = new TextBox { Location = new Point(15, 92), Width = 430, Height = 28, UseSystemPasswordChar = true };
+
+            var btnLoginWeb = new Button
+            {
+                Text = "⚡ ĐĂNG NHẬP & KÍCH HOẠT VIP",
+                Location = new Point(15, 130),
+                Size = new Size(430, 36),
+                BackColor = Color.FromArgb(0, 132, 255),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+
+            tabWeb.Controls.Add(lblUser);
+            tabWeb.Controls.Add(txtUsername);
+            tabWeb.Controls.Add(lblPass);
+            tabWeb.Controls.Add(txtPassword);
+            tabWeb.Controls.Add(btnLoginWeb);
+            tabControl.TabPages.Add(tabWeb);
+
+            // ─── TAB 2: MÃ KEY BẢN QUYỀN ───
+            var tabKey = new TabPage("🔑 Nhập Mã Key (Đại lý cấp)");
+            tabKey.BackColor = Color.White;
+            tabKey.Padding = new Padding(12);
+
+            var lblKeyHint = new Label { Text = "Nhập mã License Key được cấp:", Location = new Point(15, 15), AutoSize = true, ForeColor = Color.FromArgb(60, 60, 60) };
             var txtKeyInput = new TextBox
             {
-                Location = new Point(22, 110),
-                Size = new Size(460, 30),
+                Location = new Point(15, 42),
+                Width = 430,
+                Height = 28,
                 Font = new Font("Consolas", 11f, FontStyle.Bold),
-                PlaceholderText = "VD: LOCDARK-VIP999-TEST01"
+                PlaceholderText = "VD: LOCDARK-ULTRA30D-XXXXXX"
             };
-            if (!string.IsNullOrEmpty(licenseKey)) txtKeyInput.Text = licenseKey;
-            dlg.Controls.Add(txtKeyInput);
+            if (!string.IsNullOrEmpty(licenseKey) && !licenseKey.StartsWith("WEB:")) txtKeyInput.Text = licenseKey;
+
+            var btnSubmitKey = new Button
+            {
+                Text = "⚡ XÁC THỰC MÃ KEY",
+                Location = new Point(15, 95),
+                Size = new Size(430, 36),
+                BackColor = Color.FromArgb(39, 174, 96),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+
+            tabKey.Controls.Add(lblKeyHint);
+            tabKey.Controls.Add(txtKeyInput);
+            tabKey.Controls.Add(btnSubmitKey);
+            tabControl.TabPages.Add(tabKey);
 
             var lblStatus = new Label
             {
                 Text = "",
-                Location = new Point(22, 150),
-                Size = new Size(460, 25),
-                ForeColor = Color.Red
+                Location = new Point(22, 290),
+                Size = new Size(480, 24),
+                ForeColor = Color.Red,
+                Font = new Font("Segoe UI", 8.5f)
             };
             dlg.Controls.Add(lblStatus);
 
-            var btnSubmit = new Button
+            var btnWeb = new Button
             {
-                Text = "⚡ KÍCH HOẠT NGAY",
-                Location = new Point(22, 185),
-                Size = new Size(220, 42),
-                BackColor = Color.FromArgb(0, 132, 255),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Text = "🛒 Chưa có tài khoản? Mua gói trên Web",
+                Location = new Point(22, 318),
+                Size = new Size(480, 30),
+                BackColor = Color.FromArgb(245, 247, 250),
+                ForeColor = Color.FromArgb(0, 102, 204),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
-            btnSubmit.Click += async (s, e) => {
+            btnWeb.Click += (s, e) => {
+                Process.Start(new ProcessStartInfo { FileName = VPS_153_BASE, UseShellExecute = true });
+            };
+            dlg.Controls.Add(btnWeb);
+
+            // Xử lý đăng nhập tài khoản Web
+            btnLoginWeb.Click += async (s, e) => {
+                string u = txtUsername.Text.Trim();
+                string p = txtPassword.Text.Trim();
+                if (string.IsNullOrEmpty(u) || string.IsNullOrEmpty(p))
+                {
+                    lblStatus.Text = "Vui lòng nhập tài khoản và mật khẩu!";
+                    return;
+                }
+
+                btnLoginWeb.Enabled = false;
+                lblStatus.ForeColor = Color.Blue;
+                lblStatus.Text = "⏳ Đang kiểm tra gói trên máy chủ VPS 153...";
+
+                try
+                {
+                    var payload = new { username = u, password = p };
+                    string jsonReq = JsonSerializer.Serialize(payload);
+                    using var content = new StringContent(jsonReq, Encoding.UTF8, "application/json");
+                    var resp = await httpClient.PostAsync($"{VPS_153_BASE}/api/auth/login", content);
+                    string respStr = await resp.Content.ReadAsStringAsync();
+
+                    using var doc = JsonDocument.Parse(respStr);
+                    var root = doc.RootElement;
+                    bool ok = root.TryGetProperty("success", out var propOk) && propOk.GetBoolean();
+
+                    if (ok && root.TryGetProperty("user", out var userEl))
+                    {
+                        string plan = userEl.TryGetProperty("plan", out var pEl) ? pEl.GetString() ?? "free" : "free";
+                        long exp = userEl.TryGetProperty("plan_expire", out var expEl) && expEl.GetInt64() > 0 ? expEl.GetInt64() : (DateTimeOffset.Now.ToUnixTimeMilliseconds() + 30L * 86400000L);
+
+                        SaveLocalLicense($"WEB:{u}", plan, exp);
+                        MessageBox.Show($"Đăng nhập thành công! Tài khoản [{u}] kích hoạt gói {plan.ToUpper()}.", "Kích Hoạt Thành Công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        dlg.Close();
+                    }
+                    else
+                    {
+                        string msg = root.TryGetProperty("message", out var pMsg) ? pMsg.GetString() ?? "Sai thông tin" : "Tài khoản hoặc mật khẩu không đúng!";
+                        lblStatus.ForeColor = Color.Red;
+                        lblStatus.Text = $"❌ {msg}";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lblStatus.ForeColor = Color.Red;
+                    lblStatus.Text = $"❌ Lỗi kết nối: {ex.Message}";
+                }
+                finally
+                {
+                    btnLoginWeb.Enabled = true;
+                }
+            };
+
+            // Xử lý kích hoạt mã key
+            btnSubmitKey.Click += async (s, e) => {
                 string inputKey = txtKeyInput.Text.Trim();
                 if (string.IsNullOrEmpty(inputKey))
                 {
@@ -296,7 +417,7 @@ namespace ZLByLHL
                     return;
                 }
 
-                btnSubmit.Enabled = false;
+                btnSubmitKey.Enabled = false;
                 lblStatus.ForeColor = Color.Blue;
                 lblStatus.Text = "⏳ Đang xác thực với máy chủ VPS 153...";
 
@@ -348,25 +469,9 @@ namespace ZLByLHL
                 }
                 finally
                 {
-                    btnSubmit.Enabled = true;
+                    btnSubmitKey.Enabled = true;
                 }
             };
-            dlg.Controls.Add(btnSubmit);
-
-            var btnWeb = new Button
-            {
-                Text = "🛒 Mua Key / Gia Hạn",
-                Location = new Point(260, 185),
-                Size = new Size(220, 42),
-                BackColor = Color.FromArgb(240, 243, 246),
-                ForeColor = Color.FromArgb(40, 40, 40),
-                FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand
-            };
-            btnWeb.Click += (s, e) => {
-                Process.Start(new ProcessStartInfo { FileName = VPS_153_BASE, UseShellExecute = true });
-            };
-            dlg.Controls.Add(btnWeb);
 
             dlg.ShowDialog(this);
         }
@@ -1067,31 +1172,146 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
             };
             rightSidebar.Controls.Add(toolsPanel);
 
-            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(230, 126, 34) };
+            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 42, BackColor = Color.FromArgb(230, 126, 34) };
             var lblToolsTitle = new Label
             {
-                Text = "🛠️ ZALOTOOLS SUITE (VPS 153)",
+                Text = "🛠️ ZALOTOOLS SUITE",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
                 Dock = DockStyle.Left,
-                Width = 260,
-                Padding = new Padding(10, 8, 0, 0)
+                Width = 160,
+                Padding = new Padding(10, 10, 0, 0)
             };
+
+            btnPopOutTools = new Button
+            {
+                Text = "🗗 Cửa sổ Mini",
+                Dock = DockStyle.Right,
+                Width = 130,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(211, 84, 0),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnPopOutTools.Click += (s, e) => ToggleBotPopOut();
+
             var btnReloadTools = new Button
             {
                 Text = "🔄 Tải lại",
                 Dock = DockStyle.Right,
-                Width = 80,
+                Width = 70,
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(211, 84, 0),
+                BackColor = Color.FromArgb(230, 126, 34),
                 Cursor = Cursors.Hand
             };
             btnReloadTools.Click += (s, e) => toolsWebView?.CoreWebView2?.Reload();
 
             pnlTop.Controls.Add(lblToolsTitle);
             pnlTop.Controls.Add(btnReloadTools);
+            pnlTop.Controls.Add(btnPopOutTools);
             toolsPanel.Controls.Add(pnlTop);
+        }
+
+        private void ToggleBotPopOut()
+        {
+            if (botMiniForm != null && !botMiniForm.IsDisposed)
+            {
+                // Gắn lại vào sidebar
+                botMiniForm.Controls.Clear();
+                botMiniForm.Close();
+                botMiniForm = null;
+
+                if (toolsWebView != null)
+                {
+                    toolsPanel.Controls.Add(toolsWebView);
+                    toolsWebView.Dock = DockStyle.Fill;
+                    toolsWebView.BringToFront();
+                }
+                btnPopOutTools.Text = "🗗 Cửa sổ Mini";
+                return;
+            }
+
+            // Tách ra cửa sổ Mini độc lập có thể kéo thả tự do
+            botMiniForm = new Form
+            {
+                Text = "ZLByLHL - ZaloTools Mini Bot Suite (Cửa Sổ Theo Dõi Tự Động Clone)",
+                Size = new Size(1150, 780),
+                StartPosition = FormStartPosition.CenterScreen,
+                MinimumSize = new Size(800, 520)
+            };
+
+            string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+            if (File.Exists(icoPath))
+            {
+                try { botMiniForm.Icon = new Icon(icoPath); } catch { }
+            }
+
+            var topBar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(230, 126, 34) };
+            var lblInfo = new Label
+            {
+                Text = "🛠️ ZALOTOOLS SUITE - CỬA SỔ MINI ĐỘC LẬP (KÉO THẢ TỰ DO)",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Dock = DockStyle.Left,
+                Width = 460,
+                Padding = new Padding(12, 9, 0, 0)
+            };
+
+            var chkAlwaysOnTop = new CheckBox
+            {
+                Text = "📌 Ghim trên cùng",
+                ForeColor = Color.White,
+                Dock = DockStyle.Right,
+                Width = 145,
+                Padding = new Padding(0, 8, 0, 0),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            chkAlwaysOnTop.CheckedChanged += (s, e) => botMiniForm.TopMost = chkAlwaysOnTop.Checked;
+
+            var btnReDock = new Button
+            {
+                Text = "🗕 Gắn lại vào App",
+                Dock = DockStyle.Right,
+                Width = 140,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(211, 84, 0),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnReDock.Click += (s, e) => ToggleBotPopOut();
+
+            topBar.Controls.Add(lblInfo);
+            topBar.Controls.Add(chkAlwaysOnTop);
+            topBar.Controls.Add(btnReDock);
+            botMiniForm.Controls.Add(topBar);
+
+            if (toolsWebView != null)
+            {
+                toolsPanel.Controls.Remove(toolsWebView);
+                botMiniForm.Controls.Add(toolsWebView);
+                toolsWebView.Dock = DockStyle.Fill;
+                toolsWebView.BringToFront();
+            }
+
+            btnPopOutTools.Text = "🗕 Gắn lại App";
+
+            botMiniForm.FormClosed += (s, e) => {
+                botMiniForm = null;
+                if (toolsWebView != null && !toolsWebView.IsDisposed)
+                {
+                    toolsPanel.Controls.Add(toolsWebView);
+                    toolsWebView.Dock = DockStyle.Fill;
+                    toolsWebView.BringToFront();
+                }
+                btnPopOutTools.Text = "🗗 Cửa sổ Mini";
+            };
+
+            rightSidebar.Visible = false;
+            botMiniForm.Show();
         }
 
         private async Task InitToolsWebViewAsync()
@@ -1136,11 +1356,21 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
                 {
                     aiPanel.Visible = true;
                     toolsPanel.Visible = false;
+                    rightSidebar.Width = 360;
                     rightSidebar.Visible = true;
                 }
             }
             else if (panelName == "TOOLS")
             {
+                // Nếu đang mở cửa sổ Mini độc lập, kích hoạt cửa sổ đó
+                if (botMiniForm != null && !botMiniForm.IsDisposed)
+                {
+                    botMiniForm.WindowState = FormWindowState.Normal;
+                    botMiniForm.BringToFront();
+                    botMiniForm.Activate();
+                    return;
+                }
+
                 if (rightSidebar.Visible && toolsPanel.Visible)
                 {
                     rightSidebar.Visible = false;
@@ -1149,6 +1379,7 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
                 {
                     toolsPanel.Visible = true;
                     aiPanel.Visible = false;
+                    rightSidebar.Width = 460;
                     rightSidebar.Visible = true;
                 }
             }
