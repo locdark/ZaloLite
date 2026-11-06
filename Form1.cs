@@ -27,6 +27,7 @@ namespace ZLByLHL
         // Multi-Account (Đa tài khoản)
         private readonly Dictionary<int, WebView2> accountWebViews = new();
         private readonly Dictionary<int, Button> accountButtons = new();
+        private Button btnAddAccount = null!;
         private int currentAccountId = 1;
         private int maxAccountId = 1;
 
@@ -311,7 +312,15 @@ namespace ZLByLHL
                     string jsonReq = JsonSerializer.Serialize(payload);
                     using var content = new StringContent(jsonReq, Encoding.UTF8, "application/json");
                     var resp = await httpClient.PostAsync($"{VPS_153_BASE}/api/client/verify-license", content);
-                    string respStr = await resp.Content.ReadAsStringAsync();
+                    byte[] respBytes = await resp.Content.ReadAsByteArrayAsync();
+                    string respStr = Encoding.UTF8.GetString(respBytes).Trim();
+
+                    if (respStr.StartsWith("<"))
+                    {
+                        lblStatus.ForeColor = Color.Red;
+                        lblStatus.Text = $"❌ Máy chủ đang bận (HTTP {(int)resp.StatusCode}). Vui lòng thử lại sau 5 giây!";
+                        return;
+                    }
 
                     using var doc = JsonDocument.Parse(respStr);
                     var root = doc.RootElement;
@@ -368,7 +377,8 @@ namespace ZLByLHL
         {
             try
             {
-                string json = await httpClient.GetStringAsync($"{VPS_153_BASE}/api/client/check-update");
+                byte[] rawBytes = await httpClient.GetByteArrayAsync($"{VPS_153_BASE}/api/client/check-update");
+                string json = Encoding.UTF8.GetString(rawBytes);
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
@@ -466,7 +476,8 @@ del ""%~f0""
             sidebarPanel.Controls.Add(accountsListPanel);
 
             // Nút Thêm Tài Khoản [+]
-            Button btnAddAccount = CreateSidebarIconButton("+", "Thêm tài khoản Zalo mới", Color.FromArgb(47, 49, 54), Color.FromArgb(88, 101, 242));
+            btnAddAccount = CreateSidebarIconButton("+", "Thêm tài khoản Zalo mới (Multi-Account)", Color.FromArgb(46, 204, 113), Color.White);
+            btnAddAccount.Font = new Font("Segoe UI", 16f, FontStyle.Bold);
             btnAddAccount.Click += async (s, e) => {
                 if (!isVipActivated && maxAccountId >= 2)
                 {
@@ -585,7 +596,11 @@ del ""%~f0""
             btn.Click += async (s, e) => await SwitchToAccountAsync(accId);
 
             accountButtons[accId] = btn;
+
+            // Luôn giữ nút [+] ở cuối danh sách
+            accountsListPanel.Controls.Remove(btnAddAccount);
             accountsListPanel.Controls.Add(btn);
+            accountsListPanel.Controls.Add(btnAddAccount);
         }
 
         private async Task SwitchToAccountAsync(int accId)
@@ -725,26 +740,39 @@ del ""%~f0""
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(245, 247, 250),
-                Padding = new Padding(12)
+                Padding = new Padding(12),
+                AutoScroll = true
             };
             rightSidebar.Controls.Add(aiPanel);
+
+            // Container chứa các control theo thứ tự tuần tự
+            var contentLayout = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0)
+            };
+            aiPanel.Controls.Add(contentLayout);
 
             var lblTitle = new Label
             {
                 Text = "🤖 AI CSKH & CHỐT ĐƠN (ZLByLHL)",
                 Font = new Font("Segoe UI", 11f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 102, 204),
-                Dock = DockStyle.Top,
-                Height = 30
+                Width = 330,
+                Height = 28
             };
-            aiPanel.Controls.Add(lblTitle);
+            contentLayout.Controls.Add(lblTitle);
 
-            var lblPreset = new Label { Text = "Kịch bản bán hàng:", Dock = DockStyle.Top, Height = 22, ForeColor = Color.FromArgb(60, 60, 60) };
-            aiPanel.Controls.Add(lblPreset);
+            var lblPreset = new Label { Text = "Kịch bản bán hàng:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
+            contentLayout.Controls.Add(lblPreset);
 
             cboAiPreset = new ComboBox
             {
-                Dock = DockStyle.Top,
+                Width = 330,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Height = 28
             };
@@ -756,93 +784,97 @@ del ""%~f0""
                 "5. Dịch tin nhắn sang tiếng Anh chuyên nghiệp"
             });
             cboAiPreset.SelectedIndex = 0;
-            aiPanel.Controls.Add(cboAiPreset);
+            contentLayout.Controls.Add(cboAiPreset);
 
             var btnFetchMsg = new Button
             {
                 Text = "📥 Lấy tin nhắn khách đang chat",
-                Dock = DockStyle.Top,
-                Height = 32,
+                Width = 330,
+                Height = 36,
                 BackColor = Color.FromArgb(235, 240, 250),
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(0, 8, 0, 8),
-                Cursor = Cursors.Hand
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(0, 8, 0, 8)
             };
             btnFetchMsg.Click += async (s, e) => await ExtractLastCustomerMessageAsync();
-            aiPanel.Controls.Add(btnFetchMsg);
+            contentLayout.Controls.Add(btnFetchMsg);
 
-            var lblCust = new Label { Text = "Tin nhắn của khách:", Dock = DockStyle.Top, Height = 22, ForeColor = Color.FromArgb(60, 60, 60) };
-            aiPanel.Controls.Add(lblCust);
+            var lblCust = new Label { Text = "Tin nhắn của khách:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
+            contentLayout.Controls.Add(lblCust);
 
             txtCustomerMsg = new TextBox
             {
-                Dock = DockStyle.Top,
+                Width = 330,
                 Multiline = true,
                 Height = 65,
                 ScrollBars = ScrollBars.Vertical
             };
-            aiPanel.Controls.Add(txtCustomerMsg);
+            contentLayout.Controls.Add(txtCustomerMsg);
 
-            var lblInst = new Label { Text = "Ghi chú thêm (Giá, hàng, yêu cầu):", Dock = DockStyle.Top, Height = 22, ForeColor = Color.FromArgb(60, 60, 60) };
-            aiPanel.Controls.Add(lblInst);
+            var lblInst = new Label { Text = "Ghi chú thêm (Giá, hàng, yêu cầu):", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
+            contentLayout.Controls.Add(lblInst);
 
             txtAiInstruction = new TextBox
             {
-                Dock = DockStyle.Top,
+                Width = 330,
                 Height = 26,
                 PlaceholderText = "VD: Đang giảm 20%, freeship đơn từ 500k..."
             };
-            aiPanel.Controls.Add(txtAiInstruction);
+            contentLayout.Controls.Add(txtAiInstruction);
 
             btnAiGenerate = new Button
             {
                 Text = "✨ AI SOẠN CÂU TRẢ LỜI",
-                Dock = DockStyle.Top,
+                Width = 330,
                 Height = 38,
                 BackColor = Color.FromArgb(0, 132, 255),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Margin = new Padding(0, 8, 0, 4)
             };
             btnAiGenerate.Click += async (s, e) => await CallAiGatewayGenerateReplyAsync();
-            aiPanel.Controls.Add(btnAiGenerate);
+            contentLayout.Controls.Add(btnAiGenerate);
 
             lblAiStatus = new Label
             {
                 Text = "Sẵn sàng kết nối VPS 120 (4x Gemini Load-Balanced)",
-                Dock = DockStyle.Top,
+                Width = 330,
                 Height = 22,
                 ForeColor = Color.Gray,
                 Font = new Font("Segoe UI", 8f)
             };
-            aiPanel.Controls.Add(lblAiStatus);
+            contentLayout.Controls.Add(lblAiStatus);
 
-            var lblOut = new Label { Text = "Câu trả lời gợi ý của AI:", Dock = DockStyle.Top, Height = 22, ForeColor = Color.FromArgb(60, 60, 60) };
-            aiPanel.Controls.Add(lblOut);
+            var lblOut = new Label { Text = "Câu trả lời gợi ý của AI:", Width = 330, Height = 20, ForeColor = Color.FromArgb(60, 60, 60) };
+            contentLayout.Controls.Add(lblOut);
 
             txtAiOutput = new TextBox
             {
-                Dock = DockStyle.Fill,
+                Width = 330,
                 Multiline = true,
+                Height = 110,
                 ScrollBars = ScrollBars.Vertical,
                 BackColor = Color.White
             };
-            aiPanel.Controls.Add(txtAiOutput);
+            contentLayout.Controls.Add(txtAiOutput);
 
             var btnInsertToZalo = new Button
             {
                 Text = "🚀 CHÈN VÀO KHUNG CHAT ZALO",
-                Dock = DockStyle.Bottom,
-                Height = 40,
+                Width = 330,
+                Height = 42,
                 BackColor = Color.FromArgb(46, 204, 113),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 10f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Margin = new Padding(0, 8, 0, 15)
             };
             btnInsertToZalo.Click += async (s, e) => await InsertTextIntoZaloChatAsync(txtAiOutput.Text);
-            aiPanel.Controls.Add(btnInsertToZalo);
+            contentLayout.Controls.Add(btnInsertToZalo);
         }
 
         private async Task ExtractLastCustomerMessageAsync()
@@ -851,13 +883,59 @@ del ""%~f0""
 
             string js = @"
                 (function() {
+                    // 1. Text đang bôi đen
                     const sel = window.getSelection().toString().trim();
-                    if (sel) return sel;
+                    if (sel && sel.length > 0) return sel;
 
-                    const msgs = document.querySelectorAll('.chat-item:not(.me) .chat-message-text, .msg-text');
-                    if (msgs && msgs.length > 0) {
-                        return msgs[msgs.length - 1].innerText.trim();
+                    // 2. Tìm trong khu vực tin nhắn
+                    const chatRoot = document.querySelector('#chatViewContainer, #messageViewContainer, .chat-view, [class*=""chat-thread""]') || document.body;
+
+                    // Các selector tin nhắn của Zalo Web
+                    const selectors = [
+                        '.chat-message-text',
+                        '.card--text .text',
+                        '.card--text',
+                        '[class*=""content-text""]',
+                        '.msg-text',
+                        '.bubble-wrapper .text',
+                        '[id^=""msg-""] [class*=""text""]',
+                        '.chat-item [class*=""text""]'
+                    ];
+
+                    const bubbles = Array.from(chatRoot.querySelectorAll(selectors.join(', ')));
+
+                    for (let i = bubbles.length - 1; i >= 0; i--) {
+                        const el = bubbles[i];
+                        // Loại trừ tin do chính mình gửi (bên phải / có class me)
+                        const isMe = el.closest('.me, .chat-item--me, [class*=""bubble-right""], [class*=""--me""], [class*=""right""]');
+                        if (isMe) continue;
+
+                        let txt = (el.innerText || el.textContent || '').trim();
+                        if (txt && txt.length > 0 && !txt.match(/^\d{1,2}:\d{2}$/) && !txt.includes('Gửi yêu cầu kết bạn')) {
+                            txt = txt.replace(/\n?\d{1,2}:\d{2}$/, '').trim();
+                            if (txt.length > 0) return txt;
+                        }
                     }
+
+                    // 3. Quét hình học các phần tử bên trái
+                    const paragraphs = Array.from(chatRoot.querySelectorAll('p, span, div'));
+                    const rectRoot = chatRoot.getBoundingClientRect();
+                    const midX = rectRoot.left + (rectRoot.width / 2);
+
+                    for (let j = paragraphs.length - 1; j >= 0; j--) {
+                        const p = paragraphs[j];
+                        if (p.children.length > 0) continue;
+                        const txt = (p.innerText || '').trim();
+                        if (!txt || txt.length < 2 || txt.match(/^\d{1,2}:\d{2}$/)) continue;
+
+                        const rect = p.getBoundingClientRect();
+                        if (rect.top > rectRoot.top && rect.bottom < rectRoot.bottom && rect.right < (midX + 40) && rect.left > rectRoot.left + 40) {
+                            if (!txt.includes('Tải ngay') && !txt.includes('Tìm kiếm') && !txt.includes('Gửi yêu cầu')) {
+                                return txt;
+                            }
+                        }
+                    }
+
                     return '';
                 })();
             ";
@@ -954,10 +1032,18 @@ Chỉ trả về nội dung tin nhắn để gửi trực tiếp cho khách, kh�
             string escapedText = JsonSerializer.Serialize(text);
             string js = $@"
                 (function() {{
-                    const input = document.querySelector('div[contenteditable=""true""]') || document.getElementById('input_rich_text');
+                    const input = document.querySelector('div[contenteditable=""true""]') || 
+                                  document.getElementById('input_rich_text') || 
+                                  document.querySelector('[class*=""chat-input""]') ||
+                                  document.querySelector('.rich-input');
                     if (input) {{
                         input.focus();
-                        input.innerText = {escapedText};
+                        try {{
+                            document.execCommand('selectAll', false, null);
+                            document.execCommand('insertText', false, {escapedText});
+                        }} catch(e) {{
+                            input.innerText = {escapedText};
+                        }}
                         input.dispatchEvent(new Event('input', {{ bubbles: true }}));
                         return true;
                     }}
