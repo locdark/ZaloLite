@@ -1,8 +1,8 @@
 ; Inno Setup Script for ZLByLHL Commercial Edition
 #define MyAppName "ZLByLHL"
-#define MyAppVersion "2.0.1"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "Locdark (Hoài Lộc)"
-#define MyAppURL "http://160.191.244.153"
+#define MyAppURL "https://dairong2.online"
 #define MyAppExeName "ZLByLHL.exe"
 
 [Setup]

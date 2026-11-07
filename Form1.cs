@@ -17,7 +17,7 @@ namespace ZLByLHL
 {
     public partial class Form1 : Form
     {
-        public const string CURRENT_VERSION = "2.0.1";
+        public const string CURRENT_VERSION = "2.0.2";
         private const string APP_DATA_FOLDER_NAME = "ZLByLHLData";
         private const string REG_RUN_PATH = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string APP_REG_NAME = "ZLByLHL";
@@ -58,9 +58,9 @@ namespace ZLByLHL
         private bool isDarkMode = false;
         private bool isClosingExplicitly = false;
 
-        // Endpoints Backend
+        // Endpoints Backend (Tên miền chính thức dairong2.online)
         private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
-        private const string VPS_153_BASE = "http://160.191.244.153";
+        private const string VPS_153_BASE = "https://dairong2.online";
 
         public Form1(bool startMinimized = false)
         {
@@ -772,9 +772,37 @@ del ""%~f0""
                 targetWeb.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 targetWeb.CoreWebView2.Settings.AreDevToolsEnabled = true;
 
+                // Tự động nhận diện là ZaloPC để Zalo Web không hiển thị gợi ý tải app Zalo PC
+                try
+                {
+                    string currentUa = targetWeb.CoreWebView2.Settings.UserAgent;
+                    if (string.IsNullOrEmpty(currentUa))
+                    {
+                        currentUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+                    }
+                    if (!currentUa.Contains("ZaloPC"))
+                    {
+                        targetWeb.CoreWebView2.Settings.UserAgent = currentUa + " ZaloPC-win32-x64 ZaloPC";
+                    }
+                }
+                catch { }
+
+                // Chèn CSS và Script diệt banner 'Tải Zalo PC' ngay trước khi trang load
+                try
+                {
+                    await targetWeb.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(GetCleanUiScript());
+                }
+                catch { }
+
                 targetWeb.CoreWebView2.DOMContentLoaded += async (s, args) =>
                 {
+                    await InjectCleanUiScriptAsync(targetWeb);
                     await InjectAntiRecallScriptAsync(targetWeb);
+                };
+
+                targetWeb.CoreWebView2.NavigationCompleted += async (s, args) =>
+                {
+                    await InjectCleanUiScriptAsync(targetWeb);
                 };
 
                 targetWeb.Source = new Uri("https://chat.zalo.me");
@@ -783,6 +811,106 @@ del ""%~f0""
             {
                 MessageBox.Show($"Lỗi khởi tạo tài khoản #{accId}: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+        #endregion
+
+        #region Clean UI & Anti-Recall
+        private static string GetCleanUiScript()
+        {
+            return @"
+                (function() {
+                    // 1. Chèn CSS dập tắt ngay lập tức các banner gợi ý cài đặt Zalo PC
+                    if (!document.getElementById('zlbylhl-clean-banner')) {
+                        const style = document.createElement('style');
+                        style.id = 'zlbylhl-clean-banner';
+                        style.textContent = `
+                            [class*=""banner-download""],
+                            [class*=""download-pc""],
+                            [class*=""download-banner""],
+                            [class*=""banner-sync""],
+                            [class*=""banner_download""],
+                            .banner-download,
+                            .download-banner,
+                            .sync-banner,
+                            .top-banner,
+                            .banner-top,
+                            .banner-notify,
+                            div[class*=""banner""]:has(a[href*=""zalo.me""]) {
+                                display: none !important;
+                                height: 0px !important;
+                                min-height: 0px !important;
+                                max-height: 0px !important;
+                                padding: 0px !important;
+                                margin: 0px !important;
+                                visibility: hidden !important;
+                                overflow: hidden !important;
+                                opacity: 0 !important;
+                                pointer-events: none !important;
+                            }
+                        `;
+                        (document.head || document.documentElement).appendChild(style);
+                    }
+
+                    // 2. Quét liên tục và xóa container chứa dòng chữ 'Sử dụng Zalo PC...'
+                    function purgeDownloadBanner() {
+                        try {
+                            // Cách 1: Quét thẻ liên kết tải Zalo PC
+                            const dlLinks = document.querySelectorAll('a[href*=""zalo.me/download""], a[href*=""zalo.me/pc""], a[href*=""id.zalo.me""]');
+                            dlLinks.forEach(a => {
+                                let curr = a.parentElement;
+                                while (curr && curr !== document.body && curr.clientHeight < 80) {
+                                    if (curr.parentElement && curr.parentElement.clientHeight > 80) {
+                                        curr.style.setProperty('display', 'none', 'important');
+                                        curr.style.setProperty('height', '0px', 'important');
+                                        curr.style.setProperty('visibility', 'hidden', 'important');
+                                        curr.style.setProperty('overflow', 'hidden', 'important');
+                                        break;
+                                    }
+                                    curr = curr.parentElement;
+                                }
+                            });
+
+                            // Cách 2: Quét nội dung văn bản thông báo
+                            const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT, null, false);
+                            let node;
+                            while (node = walker.nextNode()) {
+                                const val = node.nodeValue;
+                                if (val && (val.includes('Sử dụng Zalo PC') || val.includes('lưu trữ dài hạn') || val.includes('dữ liệu trò chuyện của bạn'))) {
+                                    let curr = node.parentElement;
+                                    while (curr && curr !== document.body && curr.clientHeight < 80) {
+                                        if (curr.parentElement && curr.parentElement.clientHeight > 80) {
+                                            curr.style.setProperty('display', 'none', 'important');
+                                            curr.style.setProperty('height', '0px', 'important');
+                                            curr.style.setProperty('visibility', 'hidden', 'important');
+                                            curr.style.setProperty('overflow', 'hidden', 'important');
+                                            break;
+                                        }
+                                        curr = curr.parentElement;
+                                    }
+                                }
+                            }
+                        } catch(e) {}
+                    }
+
+                    purgeDownloadBanner();
+                    if (!window.__promoObserverActive) {
+                        window.__promoObserverActive = true;
+                        const obs = new MutationObserver(purgeDownloadBanner);
+                        obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
+                        setInterval(purgeDownloadBanner, 1500);
+                    }
+                })();
+            ";
+        }
+
+        private async Task InjectCleanUiScriptAsync(WebView2 web)
+        {
+            if (web?.CoreWebView2 == null) return;
+            try
+            {
+                await web.ExecuteScriptAsync(GetCleanUiScript());
+            }
+            catch { }
         }
 
         private async Task InjectAntiRecallScriptAsync(WebView2 web)
