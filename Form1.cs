@@ -847,21 +847,6 @@ del ""%~f0""
                 targetWeb.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 targetWeb.CoreWebView2.Settings.AreDevToolsEnabled = true;
 
-                // Tự động nhận diện là ZaloPC để Zalo Web không hiển thị gợi ý tải app Zalo PC
-                try
-                {
-                    string currentUa = targetWeb.CoreWebView2.Settings.UserAgent;
-                    if (string.IsNullOrEmpty(currentUa))
-                    {
-                        currentUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-                    }
-                    if (!currentUa.Contains("ZaloPC"))
-                    {
-                        targetWeb.CoreWebView2.Settings.UserAgent = currentUa + " ZaloPC-win32-x64 ZaloPC";
-                    }
-                }
-                catch { }
-
                 // Chèn CSS và Script diệt banner 'Tải Zalo PC' ngay trước khi trang load
                 try
                 {
@@ -894,85 +879,51 @@ del ""%~f0""
         {
             return @"
                 (function() {
-                    // 1. Chèn CSS dập tắt ngay lập tức các banner gợi ý cài đặt Zalo PC
-                    if (!document.getElementById('zlbylhl-clean-banner')) {
-                        const style = document.createElement('style');
-                        style.id = 'zlbylhl-clean-banner';
-                        style.textContent = `
-                            [class*=""banner-download""],
-                            [class*=""download-pc""],
-                            [class*=""download-banner""],
-                            [class*=""banner-sync""],
-                            [class*=""banner_download""],
-                            .banner-download,
-                            .download-banner,
-                            .sync-banner,
-                            .top-banner,
-                            .banner-top,
-                            .banner-notify,
-                            div[class*=""banner""]:has(a[href*=""zalo.me""]) {
-                                display: none !important;
-                                height: 0px !important;
-                                min-height: 0px !important;
-                                max-height: 0px !important;
-                                padding: 0px !important;
-                                margin: 0px !important;
-                                visibility: hidden !important;
-                                overflow: hidden !important;
-                                opacity: 0 !important;
-                                pointer-events: none !important;
-                            }
-                        `;
-                        (document.head || document.documentElement).appendChild(style);
+                    // Tuyệt đối không can thiệp vào trang đăng nhập id.zalo.me hoặc form login
+                    if (window.location.hostname.includes('id.zalo.me') || 
+                        window.location.pathname.includes('/login') ||
+                        document.querySelector('.body-login, .login-page, .login-v2, iframe[src*=""id.zalo.me""]')) {
+                        return;
                     }
 
-                    // 2. Quét liên tục và xóa container chứa dòng chữ 'Sử dụng Zalo PC...'
-                    function purgeDownloadBanner() {
+                    function hideChatDownloadBanner() {
                         try {
-                            // Cách 1: Quét thẻ liên kết tải Zalo PC
-                            const dlLinks = document.querySelectorAll('a[href*=""zalo.me/download""], a[href*=""zalo.me/pc""], a[href*=""id.zalo.me""]');
-                            dlLinks.forEach(a => {
-                                let curr = a.parentElement;
-                                while (curr && curr !== document.body && curr.clientHeight < 80) {
-                                    if (curr.parentElement && curr.parentElement.clientHeight > 80) {
-                                        curr.style.setProperty('display', 'none', 'important');
-                                        curr.style.setProperty('height', '0px', 'important');
-                                        curr.style.setProperty('visibility', 'hidden', 'important');
-                                        curr.style.setProperty('overflow', 'hidden', 'important');
-                                        break;
-                                    }
-                                    curr = curr.parentElement;
-                                }
-                            });
+                            // Không chạy nếu đang ở màn hình login
+                            if (document.querySelector('.body-login, .login-page, .login-v2, iframe[src*=""id.zalo.me""]')) return;
 
-                            // Cách 2: Quét nội dung văn bản thông báo
+                            // 1. Tìm thanh thông báo Zalo PC dựa trên nội dung text chính xác trong giao diện chat
                             const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT, null, false);
                             let node;
                             while (node = walker.nextNode()) {
                                 const val = node.nodeValue;
-                                if (val && (val.includes('Sử dụng Zalo PC') || val.includes('lưu trữ dài hạn') || val.includes('dữ liệu trò chuyện của bạn'))) {
+                                if (val && val.includes('Sử dụng Zalo PC để lưu trữ dài hạn')) {
                                     let curr = node.parentElement;
-                                    while (curr && curr !== document.body && curr.clientHeight < 80) {
-                                        if (curr.parentElement && curr.parentElement.clientHeight > 80) {
+                                    while (curr && curr !== document.body && curr.clientHeight < 75) {
+                                        if (curr.parentElement && curr.parentElement.clientHeight >= 75) {
                                             curr.style.setProperty('display', 'none', 'important');
                                             curr.style.setProperty('height', '0px', 'important');
                                             curr.style.setProperty('visibility', 'hidden', 'important');
-                                            curr.style.setProperty('overflow', 'hidden', 'important');
                                             break;
                                         }
                                         curr = curr.parentElement;
                                     }
                                 }
                             }
+
+                            // 2. Tự động click nút đóng [X] của banner nếu có
+                            const closeBtn = document.querySelector('div[class*=""banner""] [class*=""close""], div[class*=""banner""] i.fa-times');
+                            if (closeBtn && closeBtn.click) {
+                                closeBtn.click();
+                            }
                         } catch(e) {}
                     }
 
-                    purgeDownloadBanner();
+                    hideChatDownloadBanner();
                     if (!window.__promoObserverActive) {
                         window.__promoObserverActive = true;
-                        const obs = new MutationObserver(purgeDownloadBanner);
+                        const obs = new MutationObserver(hideChatDownloadBanner);
                         obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
-                        setInterval(purgeDownloadBanner, 1500);
+                        setInterval(hideChatDownloadBanner, 2000);
                     }
                 })();
             ";

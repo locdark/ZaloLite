@@ -1,16 +1,13 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace ZLByLHL;
 
 static class Program
 {
-    private const string MUTEX_NAME = @"Global\ZLByLHL_SingleInstance_Mutex_Lock";
-    public const int WM_SHOW_ZLBYLHL = 0x8000 + 1999; // Custom Windows Message
-
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern int RegisterWindowMessage(string lpString);
 
@@ -22,12 +19,14 @@ static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        bool isFirstInstance;
-        using var mutex = new Mutex(true, MUTEX_NAME, out isFirstInstance);
+        // Kiểm tra Single Instance thông qua Process
+        var current = Process.GetCurrentProcess();
+        var existing = Process.GetProcessesByName(current.ProcessName)
+                              .FirstOrDefault(p => p.Id != current.Id);
 
-        if (!isFirstInstance)
+        if (existing != null)
         {
-            // Đã có một instance đang chạy -> Gửi tín hiệu đánh thức cửa sổ cũ lên màn hình
+            // Đã có ứng dụng đang chạy -> Gửi tín hiệu đánh thức cửa sổ cũ lên màn hình
             int msgId = RegisterWindowMessage("ZLByLHL_WAKEUP_WINDOW_MSG");
             if (msgId != 0)
             {
