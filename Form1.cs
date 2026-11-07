@@ -510,31 +510,49 @@ namespace ZLByLHL
         {
             try
             {
-                string tempExe = Path.Combine(Path.GetTempPath(), "ZLByLHL_New.exe");
+                bool isSetupInstaller = downloadUrl.EndsWith("Setup.exe", StringComparison.OrdinalIgnoreCase);
+                string tempFile = Path.Combine(Path.GetTempPath(), isSetupInstaller ? "ZLByLHL_Setup_Update.exe" : "ZLByLHL_Update.exe");
+
                 byte[] bytes = await httpClient.GetByteArrayAsync(downloadUrl);
-                await File.WriteAllBytesAsync(tempExe, bytes);
+                await File.WriteAllBytesAsync(tempFile, bytes);
 
                 string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                string batchScript = Path.Combine(Path.GetTempPath(), "update_zlbylhl.bat");
 
-                string batContent = $@"
-@echo off
-timeout /t 2 /nobreak > nul
-move /y ""{tempExe}"" ""{currentExe}""
+                if (isSetupInstaller)
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = tempFile,
+                        Arguments = "/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+                        UseShellExecute = true
+                    });
+                    isClosingExplicitly = true;
+                    Environment.Exit(0);
+                    return;
+                }
+
+                string scriptPath = Path.Combine(Path.GetTempPath(), "do_update.cmd");
+                string cmdScript = $@"@echo off
+taskkill /f /im ZLByLHL.exe >nul 2>&1
+:retry
+ping 127.0.0.1 -n 2 >nul
+move /y ""{tempFile}"" ""{currentExe}"" >nul 2>&1
+if errorlevel 1 goto retry
 start """" ""{currentExe}""
 del ""%~f0""
 ";
-                await File.WriteAllTextAsync(batchScript, batContent);
+                await File.WriteAllTextAsync(scriptPath, cmdScript, Encoding.UTF8);
 
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = batchScript,
+                    FileName = scriptPath,
                     CreateNoWindow = true,
-                    UseShellExecute = true
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
                 });
 
                 isClosingExplicitly = true;
-                Application.Exit();
+                Environment.Exit(0);
             }
             catch (Exception ex)
             {
