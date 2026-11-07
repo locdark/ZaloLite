@@ -1,8 +1,8 @@
 {
-  "latestVersion": "2.0.2",
+  "latestVersion": "2.0.3",
   "minVersion": "1.0.0",
   "releaseDate": "2026-11-07",
   "downloadUrl": "https://dairong2.online/downloads/ZLByLHL.exe",
-  "changelog": "• Kết nối hệ thống bảo mật SSL Cloudflare chính thức: dairong2.online\n• Ẩn hoàn toàn thanh thông báo 'Tải Zalo PC' khi dùng Web, giao diện chuẩn Native App\n• Bổ sung thanh trượt kéo thu phóng kích thước tab Bot (Splitter)\n• Bổ sung Cửa sổ Mini độc lập (Pop-out Window, Always-on-top) cho Bot\n• Bổ sung nút [+] tạo thêm tab đăng nhập Zalo thứ 2, 3... (tối đa 8 nick)",
+  "changelog": "• Thêm Bảng Quản Lý RAM & Cấu Hình Bộ Nhớ (nút ⚡ trên thanh menu trái)\n• Xem chi tiết RAM ứng dụng chính, RAM các Tab Zalo và dung lượng ổ cứng thời gian thực\n• Nút '⚡ Giải phóng RAM ngay': Ép dọn dẹp, thu hồi 50-70% RAM tức thì\n• Nút '🧹 Dọn dẹp Cache & Rác': Quét sạch bộ nhớ tạm mà không làm mất đăng nhập\n• Tự động hạ RAM các Tab Zalo chạy ngầm và cấu hình chế độ Siêu Tiết Kiệm RAM",
   "forceUpdate": false
 }

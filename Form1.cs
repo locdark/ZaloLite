@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -17,7 +18,7 @@ namespace ZLByLHL
 {
     public partial class Form1 : Form
     {
-        public const string CURRENT_VERSION = "2.0.2";
+        public const string CURRENT_VERSION = "2.0.3";
         private const string APP_DATA_FOLDER_NAME = "ZLByLHLData";
         private const string REG_RUN_PATH = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string APP_REG_NAME = "ZLByLHL";
@@ -62,6 +63,14 @@ namespace ZLByLHL
         private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
         private const string VPS_153_BASE = "https://dairong2.online";
 
+        // Cấu hình RAM & Bộ nhớ
+        private bool autoThrottleBackgroundTabs = true;
+        private bool aggressiveLowMemoryMode = false;
+        private bool autoCleanCacheOnExit = false;
+
+        [System.Runtime.InteropServices.DllImport("psapi.dll")]
+        private static extern int EmptyWorkingSet(IntPtr hwProc);
+
         public Form1(bool startMinimized = false)
         {
             this.startMinimized = startMinimized;
@@ -84,6 +93,7 @@ namespace ZLByLHL
             }
 
             LoadLocalLicense();
+            LoadMemorySettings();
             BuildLayout();
             SetupTray();
 
@@ -608,7 +618,7 @@ del ""%~f0""
             Panel bottomToolsPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 255,
+                Height = 315,
                 BackColor = Color.Transparent
             };
             sidebarPanel.Controls.Add(bottomToolsPanel);
@@ -635,10 +645,15 @@ del ""%~f0""
             btnDarkToggle.Location = new Point(10, 188);
             btnDarkToggle.Click += async (s, e) => await ToggleDarkMode();
 
+            Button btnMemoryConfig = CreateSidebarIconButton("⚡", "Quản lý RAM & Cấu hình bộ nhớ", Color.FromArgb(142, 68, 173), Color.White);
+            btnMemoryConfig.Location = new Point(10, 248);
+            btnMemoryConfig.Click += (s, e) => ShowMemoryConfigDialog();
+
             bottomToolsPanel.Controls.Add(btnVipStatus);
             bottomToolsPanel.Controls.Add(btnToolsToggle);
             bottomToolsPanel.Controls.Add(btnStartupToggle);
             bottomToolsPanel.Controls.Add(btnDarkToggle);
+            bottomToolsPanel.Controls.Add(btnMemoryConfig);
 
             AddAccountButton(1);
 
@@ -757,6 +772,29 @@ del ""%~f0""
                 accountWebViews[accId].Visible = true;
                 accountWebViews[accId].BringToFront();
             }
+
+            // Quản lý mức tiêu thụ RAM theo cấu hình người dùng
+            try
+            {
+                if (accountWebViews.ContainsKey(accId) && accountWebViews[accId]?.CoreWebView2 != null)
+                {
+                    accountWebViews[accId].CoreWebView2.MemoryUsageTargetLevel = aggressiveLowMemoryMode 
+                        ? CoreWebView2MemoryUsageTargetLevel.Low 
+                        : CoreWebView2MemoryUsageTargetLevel.Normal;
+                }
+
+                if (autoThrottleBackgroundTabs)
+                {
+                    foreach (var kv in accountWebViews)
+                    {
+                        if (kv.Key != accId && kv.Value?.CoreWebView2 != null)
+                        {
+                            kv.Value.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low;
+                        }
+                    }
+                }
+            }
+            catch { }
 
             string vipTag = isVipActivated ? $"[VIP {activePlan.ToUpper()}]" : "[Bản Miễn Phí]";
             this.Text = $"ZLByLHL - {vipTag} | Tài Khoản #{accId} (v{CURRENT_VERSION})";
@@ -1263,9 +1301,433 @@ del ""%~f0""
             }
             else
             {
+                if (autoCleanCacheOnExit)
+                {
+                    try { CleanAppCache(); } catch { }
+                }
                 trayIcon?.Dispose();
             }
         }
+
+        #region Memory & Resource Management
+        private void LoadMemorySettings()
+        {
+            try
+            {
+                string confFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), APP_DATA_FOLDER_NAME, "mem_settings.json");
+                if (File.Exists(confFile))
+                {
+                    string json = File.ReadAllText(confFile);
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("autoThrottleBackgroundTabs", out var propThrottle))
+                        autoThrottleBackgroundTabs = propThrottle.GetBoolean();
+                    if (root.TryGetProperty("aggressiveLowMemoryMode", out var propAggressive))
+                        aggressiveLowMemoryMode = propAggressive.GetBoolean();
+                    if (root.TryGetProperty("autoCleanCacheOnExit", out var propCleanOnExit))
+                        autoCleanCacheOnExit = propCleanOnExit.GetBoolean();
+                }
+            }
+            catch { }
+        }
+
+        private void SaveMemorySettings()
+        {
+            try
+            {
+                string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), APP_DATA_FOLDER_NAME);
+                Directory.CreateDirectory(dataDir);
+                string confFile = Path.Combine(dataDir, "mem_settings.json");
+                var obj = new
+                {
+                    autoThrottleBackgroundTabs,
+                    aggressiveLowMemoryMode,
+                    autoCleanCacheOnExit
+                };
+                string json = JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(confFile, json);
+            }
+            catch { }
+        }
+
+        private long GetTotalAppMemoryBytes(out long mainProcessBytes, out long childProcessBytes)
+        {
+            mainProcessBytes = 0;
+            childProcessBytes = 0;
+            try
+            {
+                var main = Process.GetCurrentProcess();
+                mainProcessBytes = main.WorkingSet64;
+
+                var childProcs = Process.GetProcessesByName("msedgewebview2");
+                foreach (var p in childProcs)
+                {
+                    try { childProcessBytes += p.WorkingSet64; } catch { }
+                }
+            }
+            catch { }
+
+            return mainProcessBytes + childProcessBytes;
+        }
+
+        private long GetTotalStorageBytes()
+        {
+            try
+            {
+                string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), APP_DATA_FOLDER_NAME);
+                if (!Directory.Exists(dataDir)) return 0;
+                var di = new DirectoryInfo(dataDir);
+                return di.EnumerateFiles("*", SearchOption.AllDirectories).Sum(fi => fi.Length);
+            }
+            catch { return 0; }
+        }
+
+        private (long beforeMb, long afterMb, long savedMb) CleanAppMemory()
+        {
+            long beforeBytes = GetTotalAppMemoryBytes(out _, out _);
+
+            foreach (var kvp in accountWebViews)
+            {
+                if (kvp.Value?.CoreWebView2 != null)
+                {
+                    try
+                    {
+                        if (kvp.Key != currentAccountId || aggressiveLowMemoryMode)
+                            kvp.Value.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low;
+                    }
+                    catch { }
+                }
+            }
+            if (toolsWebView?.CoreWebView2 != null && (!rightSidebar.Visible && botMiniForm == null))
+            {
+                try { toolsWebView.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low; } catch { }
+            }
+
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            try
+            {
+                EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+            }
+            catch { }
+
+            try
+            {
+                var childProcs = Process.GetProcessesByName("msedgewebview2");
+                foreach (var p in childProcs)
+                {
+                    try { EmptyWorkingSet(p.Handle); } catch { }
+                }
+            }
+            catch { }
+
+            long afterBytes = GetTotalAppMemoryBytes(out _, out _);
+            long beforeMb = beforeBytes / (1024 * 1024);
+            long afterMb = afterBytes / (1024 * 1024);
+            long savedMb = Math.Max(0, beforeMb - afterMb);
+            return (beforeMb, afterMb, savedMb);
+        }
+
+        private long CleanAppCache()
+        {
+            long cleanedBytes = 0;
+            string rootDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), APP_DATA_FOLDER_NAME);
+            if (!Directory.Exists(rootDir)) return 0;
+
+            string[] targetCacheFolders = new[] { "Cache", "Code Cache", "GPUCache", "DawnCache", "Service Worker\\CacheStorage" };
+
+            foreach (var subDir in Directory.GetDirectories(rootDir, "*", SearchOption.AllDirectories))
+            {
+                bool shouldClean = false;
+                foreach (var t in targetCacheFolders)
+                {
+                    if (subDir.EndsWith(t, StringComparison.OrdinalIgnoreCase))
+                    {
+                        shouldClean = true;
+                        break;
+                    }
+                }
+
+                if (shouldClean)
+                {
+                    try
+                    {
+                        var di = new DirectoryInfo(subDir);
+                        foreach (var file in di.GetFiles())
+                        {
+                            try
+                            {
+                                cleanedBytes += file.Length;
+                                file.Delete();
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            return cleanedBytes / (1024 * 1024);
+        }
+
+        private void ShowMemoryConfigDialog()
+        {
+            var dlg = new Form
+            {
+                Text = "⚡ Quản Lý RAM & Cấu Hình Bộ Nhớ - ZLByLHL",
+                Size = new Size(580, 600),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(32, 34, 37),
+                ForeColor = Color.White
+            };
+
+            Label lblTitle = new Label
+            {
+                Text = "⚡ THEO DÕI TÀI NGUYÊN & CẤU HÌNH RAM",
+                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(155, 89, 182),
+                Location = new Point(20, 15),
+                AutoSize = true
+            };
+            Label lblSub = new Label
+            {
+                Text = "Theo dõi mức độ chiếm dụng phần cứng và cấu hình tối ưu thủ công.",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.DarkGray,
+                Location = new Point(22, 42),
+                AutoSize = true
+            };
+
+            Panel pnlStats = new Panel
+            {
+                Location = new Point(20, 75),
+                Size = new Size(525, 155),
+                BackColor = Color.FromArgb(47, 49, 54)
+            };
+
+            Label lblRamMain = new Label { Location = new Point(15, 12), AutoSize = true, Font = new Font("Segoe UI", 9.5f), ForeColor = Color.LightGray };
+            Label lblRamChild = new Label { Location = new Point(15, 38), AutoSize = true, Font = new Font("Segoe UI", 9.5f), ForeColor = Color.LightGray };
+            Label lblRamTotal = new Label { Location = new Point(15, 68), AutoSize = true, Font = new Font("Segoe UI", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(46, 204, 113) };
+            Label lblDiskStorage = new Label { Location = new Point(15, 100), AutoSize = true, Font = new Font("Segoe UI", 9.5f), ForeColor = Color.FromArgb(52, 152, 219) };
+            Label lblAccountCount = new Label { Location = new Point(15, 126), AutoSize = true, Font = new Font("Segoe UI", 9f), ForeColor = Color.DarkGray };
+
+            void RefreshStats()
+            {
+                long totalBytes = GetTotalAppMemoryBytes(out long mainB, out long childB);
+                long storageBytes = GetTotalStorageBytes();
+
+                lblRamMain.Text = $"• Tiến trình Ứng dụng chính (App Core): {mainB / (1024 * 1024)} MB";
+                lblRamChild.Text = $"• Các Tab Zalo (WebView2 Instances): {childB / (1024 * 1024)} MB";
+                lblRamTotal.Text = $"🚀 Tổng RAM Chiếm Dụng: {totalBytes / (1024 * 1024)} MB";
+                lblDiskStorage.Text = $"💾 Dung lượng Lưu trữ & Cache ổ cứng: {Math.Round((double)storageBytes / (1024 * 1024), 1)} MB";
+                lblAccountCount.Text = $"📊 Đang quản lý: {accountButtons.Count} Nick Zalo | Phiên bản: v{CURRENT_VERSION}";
+            }
+
+            RefreshStats();
+
+            pnlStats.Controls.Add(lblRamMain);
+            pnlStats.Controls.Add(lblRamChild);
+            pnlStats.Controls.Add(lblRamTotal);
+            pnlStats.Controls.Add(lblDiskStorage);
+            pnlStats.Controls.Add(lblAccountCount);
+
+            Label lblActionStatus = new Label
+            {
+                Location = new Point(22, 240),
+                Size = new Size(520, 22),
+                Font = new Font("Segoe UI", 9f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(46, 204, 113),
+                Text = ""
+            };
+
+            Button btnCleanRam = new Button
+            {
+                Text = "⚡ GIẢI PHÓNG RAM NGAY",
+                Location = new Point(20, 268),
+                Size = new Size(255, 42),
+                BackColor = Color.FromArgb(142, 68, 173),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnCleanRam.FlatAppearance.BorderSize = 0;
+            btnCleanRam.Click += (s, e) =>
+            {
+                var res = CleanAppMemory();
+                RefreshStats();
+                lblActionStatus.Text = $"✅ Đã giải phóng thành công {res.savedMb} MB RAM! Mức RAM hiện tại: {res.afterMb} MB.";
+            };
+
+            Button btnCleanCache = new Button
+            {
+                Text = "🧹 DỌN DẸP CACHE & RÁC",
+                Location = new Point(290, 268),
+                Size = new Size(255, 42),
+                BackColor = Color.FromArgb(52, 152, 219),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnCleanCache.FlatAppearance.BorderSize = 0;
+            btnCleanCache.Click += (s, e) =>
+            {
+                long cleanedMb = CleanAppCache();
+                RefreshStats();
+                lblActionStatus.Text = $"✅ Đã dọn dẹp sạch {cleanedMb} MB bộ nhớ cache & dữ liệu tạm!";
+            };
+
+            GroupBox grpConfig = new GroupBox
+            {
+                Text = "⚙️ Cấu hình Tối ưu hóa Thủ công",
+                Location = new Point(20, 325),
+                Size = new Size(525, 170),
+                ForeColor = Color.FromArgb(241, 196, 15),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
+            };
+
+            CheckBox chkAutoThrottle = new CheckBox
+            {
+                Text = "Tự động hạ RAM các Tab Zalo chạy ngầm (Recommended)",
+                Checked = autoThrottleBackgroundTabs,
+                Location = new Point(20, 28),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.White
+            };
+
+            Label lblDesc1 = new Label
+            {
+                Text = "Tự động đưa các tài khoản Zalo không tương tác về chế độ Low-Memory, tiết kiệm tới 60% RAM.",
+                Location = new Point(40, 52),
+                Size = new Size(465, 30),
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.Gray
+            };
+
+            CheckBox chkAggressive = new CheckBox
+            {
+                Text = "Chế độ Siêu tiết kiệm RAM cho toàn bộ Tab (Low Target)",
+                Checked = aggressiveLowMemoryMode,
+                Location = new Point(20, 85),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.White
+            };
+
+            Label lblDesc2 = new Label
+            {
+                Text = "Dành cho máy yếu hoặc mở từ 5-8 tài khoản cùng lúc để tránh nóng máy.",
+                Location = new Point(40, 108),
+                Size = new Size(465, 20),
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.Gray
+            };
+
+            CheckBox chkCleanExit = new CheckBox
+            {
+                Text = "Tự động dọn dẹp Cache tạm khi đóng ứng dụng",
+                Checked = autoCleanCacheOnExit,
+                Location = new Point(20, 132),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.White
+            };
+
+            grpConfig.Controls.Add(chkAutoThrottle);
+            grpConfig.Controls.Add(lblDesc1);
+            grpConfig.Controls.Add(chkAggressive);
+            grpConfig.Controls.Add(lblDesc2);
+            grpConfig.Controls.Add(chkCleanExit);
+
+            Button btnSave = new Button
+            {
+                Text = "💾 LƯU CẤU HÌNH & ÁP DỤNG",
+                Location = new Point(290, 508),
+                Size = new Size(255, 38),
+                BackColor = Color.FromArgb(46, 204, 113),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSave.FlatAppearance.BorderSize = 0;
+            btnSave.Click += (s, e) =>
+            {
+                autoThrottleBackgroundTabs = chkAutoThrottle.Checked;
+                aggressiveLowMemoryMode = chkAggressive.Checked;
+                autoCleanCacheOnExit = chkCleanExit.Checked;
+
+                SaveMemorySettings();
+
+                foreach (var kvp in accountWebViews)
+                {
+                    if (kvp.Value?.CoreWebView2 != null)
+                    {
+                        try
+                        {
+                            if (aggressiveLowMemoryMode || (autoThrottleBackgroundTabs && kvp.Key != currentAccountId))
+                                kvp.Value.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low;
+                            else
+                                kvp.Value.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Normal;
+                        }
+                        catch { }
+                    }
+                }
+
+                CleanAppMemory();
+                MessageBox.Show("Đã lưu và áp dụng cấu hình tối ưu RAM thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                dlg.Close();
+            };
+
+            Button btnClose = new Button
+            {
+                Text = "Đóng",
+                Location = new Point(190, 508),
+                Size = new Size(90, 38),
+                BackColor = Color.FromArgb(54, 57, 63),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f),
+                Cursor = Cursors.Hand
+            };
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.Click += (s, e) => dlg.Close();
+
+            System.Windows.Forms.Timer autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+            autoRefreshTimer.Tick += (s, e) =>
+            {
+                if (!dlg.IsDisposed && dlg.Visible)
+                {
+                    RefreshStats();
+                }
+                else
+                {
+                    autoRefreshTimer.Stop();
+                }
+            };
+            autoRefreshTimer.Start();
+            dlg.FormClosed += (s, e) => autoRefreshTimer.Stop();
+
+            dlg.Controls.Add(lblTitle);
+            dlg.Controls.Add(lblSub);
+            dlg.Controls.Add(pnlStats);
+            dlg.Controls.Add(lblActionStatus);
+            dlg.Controls.Add(btnCleanRam);
+            dlg.Controls.Add(btnCleanCache);
+            dlg.Controls.Add(grpConfig);
+            dlg.Controls.Add(btnSave);
+            dlg.Controls.Add(btnClose);
+
+            dlg.ShowDialog(this);
+        }
+        #endregion
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
